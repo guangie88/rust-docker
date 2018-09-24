@@ -1,0 +1,40 @@
+language: bash
+
+services:
+- docker
+
+env:
+  global:
+  - PROJECT_NAME=rust
+  - IMAGE_NAME=$DOCKER_USERNAME/$PROJECT_NAME
+  
+before_script:
+- set -e
+- if [ "$TRAVIS_PULL_REQUEST" = "false" ]; then
+    docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD";
+  fi
+
+script:
+- docker build -t $IMAGE_NAME .
+
+after_success:
+- |
+  docker run --rm -it $IMAGE_NAME bash -c \
+  " \
+  cargo fmt --version \
+  && cargo clippy --version \
+  "
+- export STABLE_RUST_VER=$(docker run --rm -it $IMAGE_NAME rustc --version |
+    grep -oE "[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]")
+- echo $STABLE_RUST_VER
+- export STABLE_TAG=$STABLE_RUST_VER
+- docker tag $IMAGE_NAME $IMAGE_NAME:$STABLE_TAG;
+- |
+  if [ "$TRAVIS_PULL_REQUEST" = "false" ]; then
+    docker push $IMAGE_NAME:$STABLE_TAG;
+    docker push $IMAGE_NAME;
+  fi
+
+branches:
+  only:
+  - master
